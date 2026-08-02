@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+}
+
+html,
+body {
+  background: #050506;
+  color: #e6e6e9;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Subtle scanline / grid texture for the hacker vibe */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(255, 45, 45, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 45, 45, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(120% 120% at 50% 0%, #000 30%, transparent 100%);
+}
+
+@layer components {
+  .card {
+    @apply rounded-none border border-ink-600 bg-ink-900/70 backdrop-blur
+           shadow-[inset_0_1px_0_rgba(255,255,255,0.03)];
+  }
+  .card-hover {
+    @apply transition hover:border-blood-600 hover:shadow-glow;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-mono
+           uppercase tracking-wider border transition select-none;
+  }
+  .btn-primary {
+    @apply btn border-blood-600 bg-blood-900/40 text-blood-500
+           hover:bg-blood-600 hover:text-white hover:shadow-glow;
+  }
+  .btn-ghost {
+    @apply btn border-ink-600 text-neutral-300
+           hover:border-blood-600 hover:text-blood-500;
+  }
+  .chip {
+    @apply inline-flex items-center px-2 py-0.5 text-xs font-mono uppercase
+           tracking-wide border;
+  }
+  .input {
+    @apply w-full bg-ink-950 border border-ink-600 px-3 py-2 text-sm font-mono
+           text-neutral-100 placeholder:text-neutral-600
+           focus:outline-none focus:border-blood-600 focus:shadow-glow-sm;
+  }
+  .label {
+    @apply block text-xs font-mono uppercase tracking-wider text-neutral-500 mb-1;
+  }
+  .sevcrit { @apply text-white bg-blood-600 border-blood-500; }
+  .sevhigh { @apply text-blood-500 border-blood-600 bg-blood-900/30; }
+  .sevmed  { @apply text-amber-400 border-amber-600/50 bg-amber-950/30; }
+  .sevlow  { @apply text-sky-400 border-sky-700/40 bg-sky-950/30; }
+  .sevinfo { @apply text-neutral-400 border-ink-600 bg-ink-800; }
+}
+
+/* Terminal-style command block */
+.cmd {
+  @apply font-mono text-xs text-blood-500 bg-ink-950 border-l-2 border-blood-600
+         px-3 py-2 overflow-x-auto whitespace-pre;
+}
+
+::selection {
+  background: rgba(255, 45, 45, 0.35);
+  color: #fff;
+}
+
+/* Thin red scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #0a0a0c; }
+::-webkit-scrollbar-thumb { background: #3b0606; }
+::-webkit-scrollbar-thumb:hover { background: #a30d0d; }

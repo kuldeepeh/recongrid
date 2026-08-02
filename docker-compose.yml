@@ -1,0 +1,125 @@
+name: recongrid
+
+x-backend-env: &backend-env
+  POSTGRES_USER: ${POSTGRES_USER:-recongrid}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-recongrid}
+  POSTGRES_DB: ${POSTGRES_DB:-recongrid}
+  POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+  POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+  REDIS_HOST: ${REDIS_HOST:-redis}
+  REDIS_PORT: ${REDIS_PORT:-6379}
+  REDIS_BROKER_DB: ${REDIS_BROKER_DB:-0}
+  REDIS_RESULT_DB: ${REDIS_RESULT_DB:-1}
+  REDIS_CACHE_DB: ${REDIS_CACHE_DB:-2}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-please}
+  SECRET_KEY: ${SECRET_KEY:-change-me-to-a-long-random-string}
+  SESSION_EXPIRE_MINUTES: ${SESSION_EXPIRE_MINUTES:-720}
+  # Tools run directly inside the worker image (no sibling sandbox / docker-in-docker).
+  TOOL_EXECUTION_MODE: local
+  TOOL_STAGE_TIMEOUT: ${TOOL_STAGE_TIMEOUT:-1800}
+  TEMP_PROJECT_TTL_DAYS: ${TEMP_PROJECT_TTL_DAYS:-7}
+  RAW_OUTPUT_KEEP_RUNS: ${RAW_OUTPUT_KEEP_RUNS:-20}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-recongrid}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-recongrid}
+      POSTGRES_DB: ${POSTGRES_DB:-recongrid}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-recongrid}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - core
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "\"\"", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - core
+
+  api:
+    build:
+      context: ./backend
+    environment:
+      <<: *backend-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "python -m app.startup &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    networks:
+      - core
+
+  worker:
+    build:
+      context: ./backend
+    environment:
+      <<: *backend-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - scandata:/scandata
+    # NET_RAW/NET_ADMIN let nmap send the raw packets it needs for OS
+    # fingerprinting (-O). Scans still target only authorized hosts.
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    command: ["celery", "-A", "app.celery_app.celery", "worker", "--loglevel=info", "--concurrency=2", "-Q", "scans,default"]
+    networks:
+      - core
+
+  beat:
+    build:
+      context: ./backend
+    environment:
+      <<: *backend-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["celery", "-A", "app.celery_app.celery", "beat", "--loglevel=info"]
+    networks:
+      - core
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+      API_INTERNAL_BASE_URL: ${API_INTERNAL_BASE_URL:-http://api:8000}
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+    networks:
+      - core
+
+volumes:
+  pgdata:
+  scandata:
+
+networks:
+  core:
+    driver: bridge
